@@ -1,36 +1,33 @@
 package faceDetection
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
-	"image/jpeg"
 	"log"
 	"sync"
 
 	pigo "github.com/esimov/pigo/core"
 )
 
-type MobilePigoLandMark struct {
+type FaceLandMark struct {
 	faceClassifier   *pigo.Pigo
 	puplocClassifier *pigo.PuplocCascade
-	flpcs            map[string][]*pigo.FlpCascade
-	eyeCascades      []string
 	mouthCascade     []string
-	Col              int
-	Row              int
-	Q                int
+	eyeCascades      []string
+	flpcs            map[string][]*pigo.FlpCascade
 	Cols             int
 	Rows             int
-	Scale            int
-	eyeLeftcol       int
-	eyeLeftRow       int
-	eyeRightcol      int
-	eyeRightRow      int
-	NoseCol          int
-	NoseRow          int
+	MinSize          int
+	MaxSize          int
+	ShiftFactor      float64
+	ScaleFactor      float64
+	Angle            float64
+	IOThreshold      float64
+	Faces            string
+	HolesFace        string
 }
 
-func InitFaceLandMark(facecascade, puplocCascade, lp38, lp42, lp44, lp46, lp81, lp82, lp84, lp93, lp312 []byte) *MobilePigoLandMark {
+func InitFaceLandMark(facecascade, puplocCascade, lp38, lp42, lp44, lp46, lp81, lp82, lp84, lp93, lp312 []byte) *FaceLandMark {
 	//face classifier
 	var __classifier = pigo.NewPigo()
 	var _classifier, errorFace = __classifier.Unpack(facecascade)
@@ -127,154 +124,28 @@ func InitFaceLandMark(facecascade, puplocCascade, lp38, lp42, lp44, lp46, lp81, 
 	_eyeCascades := []string{"lp46", "lp44", "lp42", "lp38", "lp312"}
 	_mouthCascade := []string{"lp93", "lp84", "lp82", "lp81"}
 
-	return &MobilePigoLandMark{
-		eyeCascades:      _eyeCascades,
-		mouthCascade:     _mouthCascade,
+	return &FaceLandMark{
 		faceClassifier:   _classifier,
 		puplocClassifier: _puplocClassifier,
 		flpcs:            _flpcs,
-		Col:              0,
-		Row:              0,
-		Q:                0,
+		eyeCascades:      _eyeCascades,
+		mouthCascade:     _mouthCascade,
 		Cols:             0,
 		Rows:             0,
-		Scale:            0,
-		eyeLeftcol:       0,
-		eyeLeftRow:       0,
-		eyeRightcol:      0,
-		eyeRightRow:      0,
-		NoseCol:          0,
-		NoseRow:          0,
+		MinSize:          100,
+		MaxSize:          400,
+		ShiftFactor:      0.1,
+		ScaleFactor:      1.0,
+		Angle:            0.0,
+		IOThreshold:      0.0,
+		Faces:            "",
+		HolesFace:        "",
 	}
 }
 
-// func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
-
-// 	//// ----------------------------------------processing face Image
-// 	var img, err = jpeg.Decode(bytes.NewReader(bytesImage))
-// 	if err != nil {
-// 		log.Fatalf("Error reading the cascade file: %s", err)
-// 	}
-// 	fmt.Println("start")
-
-// 	var pixels = pigo.RgbToGrayscale(img)
-// 	fmt.Println(len(pixels))
-// 	cols, rows := img.Bounds().Max.X, img.Bounds().Max.Y
-
-// 	imgParams := &pigo.ImageParams{
-// 		Pixels: pixels,
-// 		Rows:   rows,
-// 		Cols:   cols,
-// 		Dim:    cols,
-// 	}
-// 	cParams := pigo.CascadeParams{
-// 		MinSize:     60,
-// 		MaxSize:     600,
-// 		ShiftFactor: 0.1,
-// 		ScaleFactor: 1.1,
-// 		ImageParams: *imgParams,
-// 	}
-// 	//// ----------------------------------------processing face Detect
-
-// 	filterResult := mobiLM.faceClassifier.RunCascade(cParams, 0.0)
-
-// 	// Calculate the intersection over union (IoU) of two clusters.
-// 	filterResult = mobiLM.faceClassifier.ClusterDetections(filterResult, 0.0)
-// 	if len(filterResult) > 0 {
-// 		results := []pigo.Detection{filterResult[0]}
-
-// 		mobiLM.Scale = filterResult[0].Scale
-// 		mobiLM.Row = filterResult[0].Row
-// 		mobiLM.Col = filterResult[0].Col
-// 		mobiLM.Rows = rows
-// 		mobiLM.Cols = cols
-// 		mobiLM.Q = int(filterResult[0].Q)
-
-// 		dets := make([][]int, len(results))
-
-// 		for i := 0; i < len(results); i++ {
-// 			dets[i] = append(dets[i], results[i].Row, results[i].Col, results[i].Scale, int(results[i].Q), 0)
-// 			// left eye
-// 			puploc := &pigo.Puploc{
-// 				Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
-// 				Col:      results[i].Col - int(0.185*float32(results[i].Scale)),
-// 				Scale:    float32(results[i].Scale) * 0.4,
-// 				Perturbs: 63,
-// 			}
-// 			leftEye := mobiLM.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
-// 			if leftEye.Row > 0 && leftEye.Col > 0 {
-// 				dets[i] = append(dets[i], leftEye.Row, leftEye.Col, int(leftEye.Scale), int(results[i].Q), 1)
-// 				mobiLM.eyeLeftRow = leftEye.Row
-// 				mobiLM.eyeLeftcol = leftEye.Col
-// 			}
-
-// 			// right eye
-// 			puploc = &pigo.Puploc{
-// 				Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
-// 				Col:      results[i].Col + int(0.185*float32(results[i].Scale)),
-// 				Scale:    float32(results[i].Scale) * 0.4,
-// 				Perturbs: 63,
-// 			}
-
-// 			rightEye := mobiLM.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
-// 			if rightEye.Row > 0 && rightEye.Col > 0 {
-// 				dets[i] = append(dets[i], rightEye.Row, rightEye.Col, int(rightEye.Scale), int(results[i].Q), 1)
-// 				mobiLM.eyeRightRow = rightEye.Row
-// 				mobiLM.eyeRightcol = rightEye.Col
-// 			}
-
-// 			// Traverse all the eye cascades and run the detector on each of them.
-// 			for _, eye := range mobiLM.eyeCascades {
-// 				fmt.Println("-------- eye point-------")
-// 				fmt.Println(len(mobiLM.flpcs[eye]))
-// 				for _, flpc := range mobiLM.flpcs[eye] {
-// 					flp := flpc.GetLandmarkPoint(leftEye, rightEye, *imgParams, puploc.Perturbs, false)
-// 					if flp.Row > 0 && flp.Col > 0 {
-// 						dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-// 					}
-
-// 					flp = flpc.GetLandmarkPoint(leftEye, rightEye, *imgParams, puploc.Perturbs, true)
-// 					if flp.Row > 0 && flp.Col > 0 {
-// 						dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-// 					}
-// 				}
-// 			}
-
-// 			// Traverse all the mouth cascades and run the detector on each of them.
-// 			for _, mouth := range mobiLM.mouthCascade {
-// 				fmt.Println("-------- mount point-------")
-// 				fmt.Println(len(mobiLM.flpcs[mouth]))
-// 				for _, flpc := range mobiLM.flpcs[mouth] {
-// 					flp := flpc.GetLandmarkPoint(leftEye, rightEye, *imgParams, puploc.Perturbs, false)
-// 					if flp.Row > 0 && flp.Col > 0 {
-// 						dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-// 					}
-// 				}
-// 			}
-// 			flp := mobiLM.flpcs["lp84"][0].GetLandmarkPoint(leftEye, rightEye, *imgParams, puploc.Perturbs, true)
-// 			if flp.Row > 0 && flp.Col > 0 {
-// 				dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-// 				mobiLM.NoseCol = flp.Col
-// 				mobiLM.NoseRow = flp.Row
-// 			}
-// 		}
-
-// 		fmt.Println(len(dets[0]))
-// 	}
-// }
-
-func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
-
-	//// ----------------------------------------processing face Image
-	var img, err = jpeg.Decode(bytes.NewReader(bytesImage))
-	if err != nil {
-		log.Fatalf("Error reading the cascade file: %s", err)
-	}
-	fmt.Println("start")
-
-	var pixels = pigo.RgbToGrayscale(img)
-	fmt.Println(len(pixels))
-	cols, rows := img.Bounds().Max.X, img.Bounds().Max.Y
+func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows int) {
+	faceLandMark.Rows = rows
+	faceLandMark.Cols = cols
 
 	imgParams := &pigo.ImageParams{
 		Pixels: pixels,
@@ -289,22 +160,16 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 		ScaleFactor: 1.1,
 		ImageParams: *imgParams,
 	}
-	//// ----------------------------------------processing face Detect
 
-	filterResult := mobiLM.faceClassifier.RunCascade(cParams, 0.0)
+	filterResult := faceLandMark.faceClassifier.RunCascade(cParams, 0.0)
 
 	// Calculate the intersection over union (IoU) of two clusters.
-	filterResult = mobiLM.faceClassifier.ClusterDetections(filterResult, 0.0)
+	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.0)
 	if len(filterResult) > 0 {
+		facesResult, _ := json.Marshal(filterResult)
+		faceLandMark.Faces = string(facesResult)
+
 		results := []pigo.Detection{filterResult[0]}
-
-		mobiLM.Scale = filterResult[0].Scale
-		mobiLM.Row = filterResult[0].Row
-		mobiLM.Col = filterResult[0].Col
-		mobiLM.Rows = rows
-		mobiLM.Cols = cols
-		mobiLM.Q = int(filterResult[0].Q)
-
 		dets := make([][]int, len(results))
 
 		for i := 0; i < len(results); i++ {
@@ -325,9 +190,9 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col - int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 63,
+					Perturbs: 50,
 				}
-				leftEye := mobiLM.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
+				leftEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if leftEye.Row > 0 && leftEye.Col > 0 {
 					dets[i] = append(dets[i], leftEye.Row, leftEye.Col, int(leftEye.Scale), int(results[i].Q), 1)
 					chLeftEye <- leftEye.Row
@@ -347,9 +212,9 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col + int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 63,
+					Perturbs: 50,
 				}
-				rightEye := mobiLM.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
+				rightEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if rightEye.Row > 0 && rightEye.Col > 0 {
 					dets[i] = append(dets[i], rightEye.Row, rightEye.Col, int(rightEye.Scale), int(results[i].Q), 1)
 				}
@@ -375,9 +240,9 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 			wg.Add(3)
 			go func() {
 				fmt.Println("-------- eye point-------")
-				fmt.Println(len(mobiLM.eyeCascades))
-				for _, eye := range mobiLM.eyeCascades {
-					for _, flpc := range mobiLM.flpcs[eye] {
+				fmt.Println(len(faceLandMark.eyeCascades))
+				for _, eye := range faceLandMark.eyeCascades {
+					for _, flpc := range faceLandMark.flpcs[eye] {
 						flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
 						if flp.Row > 0 && flp.Col > 0 {
 							dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
@@ -392,9 +257,9 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 			}()
 			go func() {
 				fmt.Println("-------- eye point-------")
-				fmt.Println(len(mobiLM.mouthCascade))
-				for _, mouth := range mobiLM.mouthCascade {
-					for _, flpc := range mobiLM.flpcs[mouth] {
+				fmt.Println(len(faceLandMark.mouthCascade))
+				for _, mouth := range faceLandMark.mouthCascade {
+					for _, flpc := range faceLandMark.flpcs[mouth] {
 						flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
 						if flp.Row > 0 && flp.Col > 0 {
 							dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
@@ -404,7 +269,7 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 				wg.Done()
 			}()
 			go func() {
-				flp := mobiLM.flpcs["lp84"][0].GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
+				flp := faceLandMark.flpcs["lp84"][0].GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
 				if flp.Row > 0 && flp.Col > 0 {
 					dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
 				}
@@ -412,12 +277,8 @@ func (mobiLM *MobilePigoLandMark) GetFaceLandMark(bytesImage []uint8) {
 			}()
 			wg.Wait()
 
-			// Traverse all the eye cascades and run the detector on each of them.
-
-			// Traverse all the mouth cascades and run the detector on each of them.
-
 		}
-
-		fmt.Println(len(dets[0]))
+		landMarkResult, _ := json.Marshal(dets)
+		faceLandMark.HolesFace = string(landMarkResult)
 	}
 }

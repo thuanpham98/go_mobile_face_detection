@@ -4,97 +4,88 @@ package faceDetection
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 
 	pigo "github.com/esimov/pigo/core"
 )
 
-// type FacePoint struct {
-// 	row   int
-// 	col   int
-// 	scale int
-// 	q     int
-// }
-
-//-----------------------------------------------------------------------------
-type MobilePigo struct {
+type FaceDetect struct {
 	classifier    *pigo.Pigo
-	cascadwParams *pigo.CascadeParams
+	cascadeParams *pigo.CascadeParams
+	imageParams   *pigo.ImageParams
 	Cols          int
 	Rows          int
+	MinSize       int
+	MaxSize       int
+	ShiftFactor   float64
+	ScaleFactor   float64
+	Angle         float64
+	IOThreshold   float64
 	Faces         string
-	NumFace       int
 }
 
-func InitFaceDetect(cas []byte) *MobilePigo {
+func InitFaceDetect(cas []byte) *FaceDetect {
 
 	var __classifier = pigo.NewPigo()
 	var _classifier, error = __classifier.Unpack(cas)
+
+	var _imageParams = &pigo.ImageParams{
+		Pixels: []byte(""),
+		Rows:   0,
+		Cols:   0,
+		Dim:    0,
+	}
+
+	var _cascadeParams = &pigo.CascadeParams{
+		MinSize:     100,
+		MaxSize:     400,
+		ShiftFactor: 0.1,
+		ScaleFactor: 1.0,
+		ImageParams: *_imageParams,
+	}
+
 	if error != nil {
 		log.Fatalf("Error unpacking the cascade file: %s", error)
 	}
-	var _cascadwParams = pigo.CascadeParams{}
-	return &MobilePigo{
+	return &FaceDetect{
 		classifier:    _classifier,
-		cascadwParams: &_cascadwParams,
+		cascadeParams: _cascadeParams,
+		imageParams:   _imageParams,
 		Cols:          0,
 		Rows:          0,
+		MinSize:       100,
+		MaxSize:       400,
+		ShiftFactor:   0.1,
+		ScaleFactor:   1.0,
+		Angle:         0.0,
+		IOThreshold:   0.0,
 		Faces:         "",
-		NumFace:       0,
 	}
 }
 
-func (mobilego *MobilePigo) GetFacesDetect(pixels []byte, cols, rows int) {
+func (faceDetect *FaceDetect) GetFacesDetect(pixels []byte, cols, rows int) {
 
-	// var img, err = jpeg.Decode(bytes.NewReader(bytesImage))
-	// if err != nil {
-	// 	log.Fatalf("Error reading the cascade file: %s", err)
-	// }
-	// fmt.Println("start")
-
-	// var pixels = pigo.RgbToGrayscale(img)
-	fmt.Println(len(pixels))
-
-	// cols, rows := img.Bounds().Max.X, img.Bounds().Max.Y
-	mobilego.Cols = cols
-	mobilego.Rows = rows
-
-	mobilego.cascadwParams.MinSize = 100
-	mobilego.cascadwParams.MaxSize = 600
-	mobilego.cascadwParams.ShiftFactor = 0.15
-	mobilego.cascadwParams.ScaleFactor = 1.1
-	mobilego.cascadwParams.ImageParams = pigo.ImageParams{
+	faceDetect.Cols = cols
+	faceDetect.Rows = rows
+	faceDetect.imageParams = &pigo.ImageParams{
 		Pixels: pixels,
-		Rows:   rows,
-		Cols:   cols,
-		Dim:    cols,
+		Rows:   faceDetect.Rows,
+		Cols:   faceDetect.Cols,
+		Dim:    faceDetect.Cols,
+	}
+	faceDetect.cascadeParams = &pigo.CascadeParams{
+		MinSize:     faceDetect.MinSize,
+		MaxSize:     faceDetect.MaxSize,
+		ShiftFactor: faceDetect.ShiftFactor,
+		ScaleFactor: faceDetect.ScaleFactor,
+		ImageParams: *faceDetect.imageParams,
 	}
 
-	dets := mobilego.classifier.RunCascade(*mobilego.cascadwParams, 0.0)
-	dets = mobilego.classifier.ClusterDetections(dets, 0.0)
+	dets := faceDetect.classifier.RunCascade(*faceDetect.cascadeParams, faceDetect.Angle)
+	dets = faceDetect.classifier.ClusterDetections(dets, faceDetect.IOThreshold)
 
 	if len(dets) > 0 {
-		if mobilego.NumFace > len(dets) {
-			mobilego.NumFace = len(dets)
-		}
-		// var faces []FacePoint
-		// for i := 0; i < mobilego.NumFace; i++ {
-		// 	faces = append(faces, FacePoint{
-		// 		row:   dets[i].Row,
-		// 		col:   dets[i].Col,
-		// 		q:     int(dets[i].Q),
-		// 		scale: dets[i].Scale,
-		// 	})
-		// }
 		facesResult, _ := json.Marshal(dets)
-		fmt.Println(string(facesResult))
-		mobilego.Faces = string(facesResult)
+		faceDetect.Faces = string(facesResult)
 	}
-	// else {
-	// mobilego.Faces = ""
-	// fmt.Println("No face founded")
-	// }
 }
-
-//-----------------------------------------------------------------------------
