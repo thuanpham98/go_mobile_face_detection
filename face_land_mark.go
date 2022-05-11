@@ -195,7 +195,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col - int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 50,
+					Perturbs: 63,
 				}
 				leftEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if leftEye.Row > 0 && leftEye.Col > 0 {
@@ -211,7 +211,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col + int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 50,
+					Perturbs: 63,
 				}
 				rightEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if rightEye.Row > 0 && rightEye.Col > 0 {
@@ -239,7 +239,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 			rightEyePuploc = <-chRightEyePuploc
 
 			// phase 2 --------------------------------------
-			wg.Add(3)
+			wg.Add(1)
 			go func() {
 				for _, eye := range faceLandMark.eyeCascades {
 					for _, flpc := range faceLandMark.flpcs[eye] {
@@ -253,9 +253,6 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 						}
 					}
 				}
-				wg.Done()
-			}()
-			go func() {
 				for _, mouth := range faceLandMark.mouthCascade {
 					for _, flpc := range faceLandMark.flpcs[mouth] {
 						flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
@@ -264,9 +261,6 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 						}
 					}
 				}
-				wg.Done()
-			}()
-			go func() {
 				flp := faceLandMark.flpcs["lp84"][0].GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
 				if flp.Row > 0 && flp.Col > 0 {
 					dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
