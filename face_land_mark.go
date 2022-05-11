@@ -2,12 +2,16 @@ package faceDetection
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
+	"math"
 	"sync"
 
 	pigo "github.com/esimov/pigo/core"
 )
+
+type point struct {
+	x, y int
+}
 
 type FaceLandMark struct {
 	faceClassifier   *pigo.Pigo
@@ -154,8 +158,8 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 		Dim:    cols,
 	}
 	cParams := pigo.CascadeParams{
-		MinSize:     100,
-		MaxSize:     400,
+		MinSize:     60,
+		MaxSize:     600,
 		ShiftFactor: 0.1,
 		ScaleFactor: 1.1,
 		ImageParams: *imgParams,
@@ -163,7 +167,6 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 
 	filterResult := faceLandMark.faceClassifier.RunCascade(cParams, 0.0)
 
-	fmt.Println("Calculate the intersection over union (IoU) of two clusters.")
 	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.0)
 	if len(filterResult) > 0 {
 		facesResult, _ := json.Marshal(filterResult)
@@ -174,108 +177,103 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 
 		for i := 0; i < len(results); i++ {
 			dets[i] = append(dets[i], results[i].Row, results[i].Col, results[i].Scale, int(results[i].Q), 0)
-			chLeftEye := make(chan int, 3)
-			chLeftRight := make(chan int, 3)
+			// chLeftEye := make(chan int, 3)
+			// chLeftRight := make(chan int, 3)
 			chPuploc := make(chan pigo.Puploc, 1)
 			chLeftEyePuploc := make(chan pigo.Puploc, 1)
 			chRightEyePuploc := make(chan pigo.Puploc, 1)
 			var wg sync.WaitGroup
-			// var puploc pigo.Puploc
-			// var leftEyePuploc pigo.Puploc
-			// var rightEyePuploc pigo.Puploc
-			wg.Add(2)
-			// left eye
+			var puploc pigo.Puploc
+			var leftEyePuploc pigo.Puploc
+			var rightEyePuploc pigo.Puploc
+			wg.Add(1)
+
 			go func() {
+
+				// left eye
 				puploc := &pigo.Puploc{
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col - int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 63,
+					Perturbs: 50,
 				}
 				leftEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if leftEye.Row > 0 && leftEye.Col > 0 {
 					dets[i] = append(dets[i], leftEye.Row, leftEye.Col, int(leftEye.Scale), int(results[i].Q), 1)
-					chLeftEye <- leftEye.Row
-					chLeftEye <- leftEye.Col
-					chLeftEye <- int(leftEye.Scale)
-					close(chLeftEye)
-
-					chLeftEyePuploc <- *leftEye
-					close(chLeftEyePuploc)
-					wg.Done()
 				}
-			}()
+				p1 := &point{x: leftEye.Row, y: leftEye.Col}
 
-			// right eye
-			go func() {
-				puploc := &pigo.Puploc{
+				chLeftEyePuploc <- *leftEye
+				close(chLeftEyePuploc)
+
+				// right eye
+				puploc = &pigo.Puploc{
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col + int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 63,
+					Perturbs: 50,
 				}
 				rightEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if rightEye.Row > 0 && rightEye.Col > 0 {
 					dets[i] = append(dets[i], rightEye.Row, rightEye.Col, int(rightEye.Scale), int(results[i].Q), 1)
 				}
-				chLeftRight <- rightEye.Row
-				chLeftRight <- rightEye.Col
-				chLeftRight <- int(rightEye.Scale)
-				close(chLeftRight)
+				p2 := &point{x: rightEye.Row, y: rightEye.Col}
 
-				chPuploc <- *puploc
-				close(chPuploc)
+				// Calculate the lean angle between the pupils.
+				angle := math.Atan2(float64(p2.y-p1.y), float64(p2.x-p1.x)) * 180 / math.Pi
+				// face
+				dets[i] = append(dets[i], results[i].Row, results[i].Col, results[i].Scale, int(results[i].Q), int(angle))
 
 				chRightEyePuploc <- *rightEye
 				close(chRightEyePuploc)
+
+				chPuploc <- *puploc
+				close(chPuploc)
 				wg.Done()
 			}()
 
 			wg.Wait()
-			// puploc = <-chPuploc
-			// leftEyePuploc = <-chLeftEyePuploc
-			// rightEyePuploc = <-chRightEyePuploc
 
-			// phase 2
-			// wg.Add(3)
-			// go func() {
-			// 	// fmt.Println("-------- eye point-------")
-			// 	// fmt.Println(len(faceLandMark.eyeCascades))
-			// 	for _, eye := range faceLandMark.eyeCascades {
-			// 		for _, flpc := range faceLandMark.flpcs[eye] {
-			// 			flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
-			// 			if flp.Row > 0 && flp.Col > 0 {
-			// 				dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-			// 			}
-			// 			flp = flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
-			// 			if flp.Row > 0 && flp.Col > 0 {
-			// 				dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-			// 			}
-			// 		}
-			// 	}
-			// 	wg.Done()
-			// }()
-			// go func() {
-			// 	// fmt.Println("-------- eye point-------")
-			// 	// fmt.Println(len(faceLandMark.mouthCascade))
-			// 	for _, mouth := range faceLandMark.mouthCascade {
-			// 		for _, flpc := range faceLandMark.flpcs[mouth] {
-			// 			flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
-			// 			if flp.Row > 0 && flp.Col > 0 {
-			// 				dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-			// 			}
-			// 		}
-			// 	}
-			// 	wg.Done()
-			// }()
-			// go func() {
-			// 	flp := faceLandMark.flpcs["lp84"][0].GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
-			// 	if flp.Row > 0 && flp.Col > 0 {
-			// 		dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
-			// 	}
-			// 	wg.Done()
-			// }()
-			// wg.Wait()
+			puploc = <-chPuploc
+			leftEyePuploc = <-chLeftEyePuploc
+			rightEyePuploc = <-chRightEyePuploc
+
+			// phase 2 --------------------------------------
+			wg.Add(3)
+			go func() {
+				for _, eye := range faceLandMark.eyeCascades {
+					for _, flpc := range faceLandMark.flpcs[eye] {
+						flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
+						if flp.Row > 0 && flp.Col > 0 {
+							dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
+						}
+						flp = flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
+						if flp.Row > 0 && flp.Col > 0 {
+							dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
+						}
+					}
+				}
+				wg.Done()
+			}()
+			go func() {
+				for _, mouth := range faceLandMark.mouthCascade {
+					for _, flpc := range faceLandMark.flpcs[mouth] {
+						flp := flpc.GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, false)
+						if flp.Row > 0 && flp.Col > 0 {
+							dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
+						}
+					}
+				}
+				wg.Done()
+			}()
+			go func() {
+				flp := faceLandMark.flpcs["lp84"][0].GetLandmarkPoint(&leftEyePuploc, &rightEyePuploc, *imgParams, puploc.Perturbs, true)
+				if flp.Row > 0 && flp.Col > 0 {
+					dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
+				}
+				wg.Done()
+			}()
+			wg.Wait()
 
 		}
 		landMarkResult, _ := json.Marshal(dets)
