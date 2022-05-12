@@ -167,7 +167,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 
 	filterResult := faceLandMark.faceClassifier.RunCascade(cParams, 0.0)
 
-	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.1)
+	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.015)
 	if len(filterResult) > 0 {
 		facesResult, _ := json.Marshal(filterResult)
 		faceLandMark.Faces = string(facesResult)
