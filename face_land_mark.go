@@ -158,7 +158,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 		Dim:    cols,
 	}
 	cParams := pigo.CascadeParams{
-		MinSize:     60,
+		MinSize:     80,
 		MaxSize:     600,
 		ShiftFactor: 0.1,
 		ScaleFactor: 1.1,
@@ -195,7 +195,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col - int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 50,
+					Perturbs: 63,
 				}
 				leftEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if leftEye.Row > 0 && leftEye.Col > 0 {
@@ -211,7 +211,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 					Row:      results[i].Row - int(0.085*float32(results[i].Scale)),
 					Col:      results[i].Col + int(0.185*float32(results[i].Scale)),
 					Scale:    float32(results[i].Scale) * 0.4,
-					Perturbs: 50,
+					Perturbs: 63,
 				}
 				rightEye := faceLandMark.puplocClassifier.RunDetector(*puploc, *imgParams, 0.0, false)
 				if rightEye.Row > 0 && rightEye.Col > 0 {
