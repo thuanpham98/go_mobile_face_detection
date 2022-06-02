@@ -28,6 +28,7 @@ type FaceLandMark struct {
 	Angle            float64
 	IOThreshold      float64
 	Faces            string
+	NumFace          int
 	HolesFace        string
 }
 
@@ -142,6 +143,7 @@ func InitFaceLandMark(facecascade, puplocCascade, lp38, lp42, lp44, lp46, lp81, 
 		ScaleFactor:      1.0,
 		Angle:            0.0,
 		IOThreshold:      0.0,
+		NumFace:          0,
 		Faces:            "",
 		HolesFace:        "",
 	}
@@ -167,7 +169,8 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 
 	filterResult := faceLandMark.faceClassifier.RunCascade(cParams, 0.0)
 
-	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.015)
+	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.1)
+	faceLandMark.NumFace = len(filterResult)
 	if len(filterResult) > 0 {
 		facesResult, _ := json.Marshal(filterResult)
 		faceLandMark.Faces = string(facesResult)
@@ -177,8 +180,7 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 
 		for i := 0; i < len(results); i++ {
 			dets[i] = append(dets[i], results[i].Row, results[i].Col, results[i].Scale, int(results[i].Q), 0)
-			// chLeftEye := make(chan int, 3)
-			// chLeftRight := make(chan int, 3)
+
 			chPuploc := make(chan pigo.Puploc, 1)
 			chLeftEyePuploc := make(chan pigo.Puploc, 1)
 			chRightEyePuploc := make(chan pigo.Puploc, 1)
@@ -272,5 +274,8 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 		}
 		landMarkResult, _ := json.Marshal(dets)
 		faceLandMark.HolesFace = string(landMarkResult)
+	} else {
+		faceLandMark.Faces = ""
+		faceLandMark.HolesFace = ""
 	}
 }

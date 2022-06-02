@@ -22,6 +22,7 @@ type FaceDetect struct {
 	Angle         float64
 	IOThreshold   float64
 	Faces         string
+	NumFace       int
 }
 
 func InitFaceDetect(cas []byte) *FaceDetect {
@@ -60,6 +61,7 @@ func InitFaceDetect(cas []byte) *FaceDetect {
 		Angle:         0.0,
 		IOThreshold:   0.0,
 		Faces:         "",
+		NumFace:       0,
 	}
 }
 
@@ -84,8 +86,12 @@ func (faceDetect *FaceDetect) GetFacesDetect(pixels []byte, cols, rows int) {
 	dets := faceDetect.classifier.RunCascade(*faceDetect.cascadeParams, faceDetect.Angle)
 	dets = faceDetect.classifier.ClusterDetections(dets, faceDetect.IOThreshold)
 
+	faceDetect.NumFace = len(dets)
+
 	if len(dets) > 0 {
 		facesResult, _ := json.Marshal(dets)
 		faceDetect.Faces = string(facesResult)
+	} else {
+		faceDetect.Faces = ""
 	}
 }
