@@ -136,9 +136,9 @@ func InitFaceLandMark(facecascade, puplocCascade, lp38, lp42, lp44, lp46, lp81, 
 		mouthCascade:     _mouthCascade,
 		Cols:             0,
 		Rows:             0,
-		MinSize:          100,
-		MaxSize:          400,
-		ShiftFactor:      0.1,
+		MinSize:          120,
+		MaxSize:          640,
+		ShiftFactor:      0.09,
 		ScaleFactor:      1.0,
 		Angle:            0.0,
 		IOThreshold:      0.0,
@@ -158,16 +158,16 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 		Dim:    cols,
 	}
 	cParams := pigo.CascadeParams{
-		MinSize:     80,
-		MaxSize:     600,
-		ShiftFactor: 0.1,
-		ScaleFactor: 1.1,
+		MinSize:     120,
+		MaxSize:     640,
+		ShiftFactor: 0.09,
+		ScaleFactor: 1,
 		ImageParams: *imgParams,
 	}
 
 	filterResult := faceLandMark.faceClassifier.RunCascade(cParams, 0.0)
 
-	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.015)
+	filterResult = faceLandMark.faceClassifier.ClusterDetections(filterResult, 0.01)
 	if len(filterResult) > 0 {
 		facesResult, _ := json.Marshal(filterResult)
 		faceLandMark.Faces = string(facesResult)
