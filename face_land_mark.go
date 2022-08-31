@@ -177,7 +177,9 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 		dets := make([][]int, len(results))
 		var detsRet [][]int
 		for i := 0; i < len(results); i++ {
-
+			if int(results[i].Q) < 15 {
+				continue
+			}
 			// dets[i] = append(dets[i], results[i].Row, results[i].Col, results[i].Scale, int(results[i].Q), 0)
 
 			// chPuploc := make(chan pigo.Puploc, 1)
@@ -243,6 +245,8 @@ func (faceLandMark *FaceLandMark) GetFaceLandMark(pixels []uint8, cols int, rows
 			flp := faceLandMark.flpcs["lp93"][0].GetLandmarkPoint(leftEye, rightEye, *imgParams, puploc.Perturbs, true)
 			if flp.Row > 0 && flp.Col > 0 {
 				dets[i] = append(dets[i], flp.Row, flp.Col, int(flp.Scale), int(results[i].Q), 2)
+			} else {
+				continue
 			}
 			// wg.Add(1)
 			// go func() {
